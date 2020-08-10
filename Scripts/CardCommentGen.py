@@ -50,7 +50,7 @@ def cardCommentGen(card):
     return str_format
 
 
-def setCommentGen(target_set):
+def setCommentGen(target_set, target_id):
     Heroes = []
     HeroPowers = []
     Druid = []
@@ -122,7 +122,7 @@ def setCommentGen(target_set):
                 Druid.append(data)
             else:
                 DruidNonCollect.append(data)
-    
+
         elif card["cardClass"] == "HUNTER":
             data = cardCommentGen(card)
             data = data + "\n" + "\n"
