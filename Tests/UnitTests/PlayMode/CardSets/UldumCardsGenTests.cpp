@@ -1242,7 +1242,7 @@ TEST_CASE("[Hunter : Weapon] - ULD_430 : Desert Spear")
     CHECK_EQ(curField[1]->card->name, "Locust");
     CHECK_EQ(curField[1]->GetAttack(), 1);
     CHECK_EQ(curField[1]->GetHealth(), 1);
-    CHECK_EQ(curField[1]->IsRush(), true);
+    CHECK_EQ(curField[1]->HasRush(), true);
 
     game.Process(curPlayer, EndTurnTask());
     game.ProcessUntil(Step::MAIN_ACTION);
@@ -1298,7 +1298,7 @@ TEST_CASE("[Hunter : Spell] - ULD_713 : Swarm of Locusts")
         CHECK_EQ(curField[i]->card->name, "Locust");
         CHECK_EQ(curField[i]->GetAttack(), 1);
         CHECK_EQ(curField[i]->GetHealth(), 1);
-        CHECK_EQ(curField[i]->IsRush(), true);
+        CHECK_EQ(curField[i]->HasRush(), true);
     }
 }
 
@@ -2550,7 +2550,7 @@ TEST_CASE("[Rogue : Minion] - ULD_231 : Whirlkick Master")
 
     game.Process(curPlayer, EndTurnTask());
     game.ProcessUntil(Step::MAIN_ACTION);
-    
+
     game.Process(opPlayer, PlayCardTask::SpellTarget(card6, curPlayer->GetHero()));
     CHECK_EQ(curHand.GetCount(), 3);
     CHECK_EQ(opHand.GetCount(), 1);     // The Coin
@@ -2564,6 +2564,362 @@ TEST_CASE("[Rogue : Minion] - ULD_231 : Whirlkick Master")
     CHECK_EQ(curHand[0]->card->HasGameTag(GameTag::COMBO), true);
     CHECK_EQ(curHand[1]->card->HasGameTag(GameTag::COMBO), true);
     CHECK_EQ(curHand[2]->card->HasGameTag(GameTag::COMBO), true);
+}
+
+// ----------------------------------------- MINION - ROGUE
+// [ULD_280] Sahket Sapper - COST:4 [ATK:4/HP:4]
+// - Race: Pirate, Set: Uldum, Rarity: Rare
+// --------------------------------------------------------
+// Text: <b>Deathrattle:</b> Return a random enemy minion
+//       to your opponent's hand.
+// --------------------------------------------------------
+// GameTag:
+// - DEATHRATTLE = 1
+// --------------------------------------------------------
+TEST_CASE("[Rogue : Minion] - ULD_280 : Sahket Sapper")
+{
+    GameConfig config;
+    config.player1Class = CardClass::ROGUE;
+    config.player2Class = CardClass::ROGUE;
+    config.startPlayer = PlayerType::PLAYER1;
+    config.doFillDecks = false;
+    config.autoRun = false;
+
+    Game game(config);
+    game.Start();
+    game.ProcessUntil(Step::MAIN_ACTION);
+
+    Player* curPlayer = game.GetCurrentPlayer();
+    Player* opPlayer = game.GetOpponentPlayer();
+    curPlayer->SetTotalMana(10);
+    curPlayer->SetUsedMana(0);
+    opPlayer->SetTotalMana(10);
+    opPlayer->SetUsedMana(0);
+
+    auto& curHand = *(curPlayer->GetHandZone());
+    auto& opHand = *(opPlayer->GetHandZone());
+    auto& curField = *(curPlayer->GetFieldZone());
+    auto& opField = *(opPlayer->GetFieldZone());
+
+    for(int i = 0; i < 10; i++)
+    {
+        Generic::DrawCard(curPlayer, Cards::FindCardByName("Sahket Sapper"));
+    }
+    game.Process(curPlayer, PlayCardTask::Minion(curHand[0]));
+    Generic::DrawCard(curPlayer, Cards::FindCardByName("Sahket Sapper"));
+
+    game.Process(curPlayer, EndTurnTask());
+    game.ProcessUntil(Step::MAIN_ACTION);
+
+    const auto card1 =
+        Generic::DrawCard(opPlayer, Cards::FindCardByName("Sahket Sapper"));
+    const auto card2 =
+        Generic::DrawCard(opPlayer, Cards::FindCardByName("Sahket Sapper"));
+    const auto card3 =
+        Generic::DrawCard(opPlayer, Cards::FindCardByName("Eviscerate"));
+
+    game.Process(opPlayer, PlayCardTask::Minion(card1));
+    game.Process(opPlayer, PlayCardTask::Minion(card2));
+    game.Process(opPlayer, PlayCardTask::SpellTarget(card3, card1));
+
+    CHECK_EQ(curField.GetCount(), 0);
+    CHECK_EQ(opField.GetCount(), 0);
+    CHECK_EQ(curHand.GetCount(), 10);
+    CHECK_EQ(opHand.GetCount(), 2);     // 'The Coin' and returned 'Sahket Sapper'
+}
+
+// ----------------------------------------- WEAPON - ROGUE
+// [ULD_285] Hooked Scimitar - COST:3 [ATK:2/HP:0]
+// - Set: Uldum, Rarity: Common
+// --------------------------------------------------------
+// Text: <b>Combo:</b> Gain +2 Attack.
+// --------------------------------------------------------
+// GameTag:
+// - DURABILITY = 2
+// - COMBO = 1
+// --------------------------------------------------------
+TEST_CASE("[Rogue : Weapon] - ULD_285 : Hooked Scimitar")
+{
+    GameConfig config;
+    config.player1Class = CardClass::ROGUE;
+    config.player2Class = CardClass::MAGE;
+    config.startPlayer = PlayerType::PLAYER1;
+    config.doFillDecks = false;
+    config.autoRun = false;
+
+    Game game(config);
+    game.Start();
+    game.ProcessUntil(Step::MAIN_ACTION);
+
+    Player* curPlayer = game.GetCurrentPlayer();
+    Player* opPlayer = game.GetOpponentPlayer();
+    curPlayer->SetTotalMana(10);
+    curPlayer->SetUsedMana(0);
+    opPlayer->SetTotalMana(10);
+    opPlayer->SetUsedMana(0);
+
+    const auto card1 =
+        Generic::DrawCard(curPlayer, Cards::FindCardByName("Hooked Scimitar"));
+    const auto card2 =
+        Generic::DrawCard(curPlayer, Cards::FindCardByName("Hooked Scimitar"));
+
+    game.Process(curPlayer, PlayCardTask::Weapon(card1));
+    CHECK_EQ(curPlayer->GetHero()->GetAttack(), 2);
+
+    game.Process(curPlayer, PlayCardTask::Weapon(card2));
+    CHECK_EQ(curPlayer->GetHero()->GetAttack(), 4);
+}
+
+// ------------------------------------------ SPELL - ROGUE
+// [ULD_286] Shadow of Death - COST:4
+// - Set: Uldum, Rarity: Epic
+// --------------------------------------------------------
+// Text: Choose a minion. Shuffle 3 'Shadows' into your deck
+//       that summon a copy when drawn.
+// --------------------------------------------------------
+// PlayReq:
+// - REQ_TARGET_TO_PLAY = 0
+// - REQ_MINION_TARGET = 0
+// --------------------------------------------------------
+TEST_CASE("[Rogue : Spell] - ULD_286 : Shadow of Death")
+{
+    GameConfig config;
+    config.player1Class = CardClass::ROGUE;
+    config.player2Class = CardClass::MAGE;
+    config.startPlayer = PlayerType::PLAYER1;
+    config.doFillDecks = false;
+    config.autoRun = false;
+
+    Game game(config);
+    game.Start();
+    game.ProcessUntil(Step::MAIN_ACTION);
+
+    Player* curPlayer = game.GetCurrentPlayer();
+    Player* opPlayer = game.GetOpponentPlayer();
+    curPlayer->SetTotalMana(10);
+    curPlayer->SetUsedMana(0);
+    opPlayer->SetTotalMana(10);
+    opPlayer->SetUsedMana(0);
+
+    auto& curField = *(curPlayer->GetFieldZone());
+
+    const auto card1 =
+        Generic::DrawCard(curPlayer, Cards::FindCardByName("Dread Raven"));
+    const auto card2 =
+        Generic::DrawCard(curPlayer, Cards::FindCardByName("Shadow of Death"));
+    const auto card3 =
+        Generic::DrawCard(curPlayer, Cards::FindCardByName("Fan of Knives"));
+
+    game.Process(curPlayer, PlayCardTask::Minion(card1));
+
+    CHECK_EQ(curField.GetCount(), 1);
+    game.Process(curPlayer, PlayCardTask::SpellTarget(card2, card1));
+    CHECK_EQ(curField.GetCount(), 1);
+    game.Process(curPlayer, PlayCardTask::Spell(card3));
+
+    CHECK_EQ(curField.GetCount(), 4);
+    CHECK_EQ(curField[0]->GetAttack(), 12);
+}
+
+// ------------------------------------------ SPELL - ROGUE
+// [ULD_326] Bazaar Burglary - COST:1
+// - Set: Uldum, Rarity: Legendary
+// --------------------------------------------------------
+// Text: <b>Quest:</b> Add 4 cards from other classes to your hand.
+//       <b>Reward: </b>Ancient Blades.
+// --------------------------------------------------------
+// GameTag:
+// - ELITE = 1
+// - QUEST = 1
+// - QUEST_PROGRESS_TOTAL = 4
+// - 676 = 1
+// - 839 = 1
+// - QUEST_REWARD_DATABASE_ID = 54312
+// --------------------------------------------------------
+TEST_CASE("[Rogue : Spell] - ULD_326 : Bazaar Burglary")
+{
+    /***** Game 1 Start *****/
+    {
+        GameConfig config;
+        config.player1Class = CardClass::ROGUE;
+        config.player2Class = CardClass::WARRIOR;
+        config.startPlayer = PlayerType::PLAYER1;
+        config.doFillDecks = false;
+        config.autoRun = false;
+
+        Game game(config);
+        game.Start();
+        game.ProcessUntil(Step::MAIN_ACTION);
+
+        Player* curPlayer = game.GetCurrentPlayer();
+        Player* opPlayer = game.GetOpponentPlayer();
+        curPlayer->SetTotalMana(10);
+        curPlayer->SetUsedMana(0);
+        opPlayer->SetTotalMana(10);
+        opPlayer->SetUsedMana(0);
+
+        auto curHero = curPlayer->GetHero();
+        auto opHero = opPlayer->GetHero();
+        auto curSecret = curPlayer->GetSecretZone();
+        auto& opField = *opPlayer->GetFieldZone();
+
+        const auto curCard1 = Generic::DrawCard(
+            curPlayer, Cards::FindCardByName("Bazaar Burglary"));
+        const auto curCard2 = Generic::DrawCard(
+            curPlayer, Cards::FindCardByName("Bazaar Mugger"));
+        const auto curCard3 =
+            Generic::DrawCard(curPlayer, Cards::FindCardByName("Witch's Brew"));
+        const auto curCard4 =
+            Generic::DrawCard(curPlayer, Cards::FindCardByName("Rapid Fire"));
+        const auto curCard5 = Generic::DrawCard(
+            curPlayer, Cards::FindCardByName("Ysera, Unleashed"));
+        const auto curCard6 =
+            Generic::DrawCard(curPlayer, Cards::FindCardByName("Shiv"));
+
+        opField.Add(Entity::GetFromCard(
+            opPlayer, Cards::FindCardByName("Boulderfist Ogre")));
+
+        auto quest = dynamic_cast<Spell*>(curCard1);
+
+        game.Process(curPlayer, PlayCardTask::Spell(curCard1));
+        CHECK(curSecret->quest != nullptr);
+        CHECK_EQ(quest->GetQuestProgress(), 0);
+        CHECK_EQ(quest->GetQuestProgressTotal(), 4);
+
+        game.Process(curPlayer, PlayCardTask::Minion(curCard2));
+        CHECK_EQ(quest->GetQuestProgress(), 1);
+
+        game.Process(curPlayer, PlayCardTask::SpellTarget(curCard3, curHero));
+        CHECK_EQ(quest->GetQuestProgress(), 2);
+
+        game.Process(curPlayer, PlayCardTask::SpellTarget(curCard4, opHero));
+        CHECK_EQ(quest->GetQuestProgress(), 3);
+
+        curPlayer->SetUsedMana(0);
+        game.Process(curPlayer, PlayCardTask::Minion(curCard5));
+        CHECK_EQ(quest->GetQuestProgress(), 3);
+
+        curPlayer->SetUsedMana(0);
+        CHECK_EQ(curPlayer->GetFieldZone()->GetCount(), 2);
+        game.Process(curPlayer, PlayCardTask::SpellTarget(curCard6, opHero));
+        CHECK_EQ(curPlayer->GetFieldZone()->GetCount(), 7);
+        CHECK_EQ(quest->GetQuestProgress(), 4);
+
+        CHECK(curSecret->quest == nullptr);
+        CHECK_EQ(curHero->heroPower->card->id, "ULD_326p");
+
+        const int curHealth = curHero->GetHealth();
+        game.Process(curPlayer, HeroPowerTask());
+        game.Process(curPlayer, AttackTask(curHero, opField[0]));
+        CHECK_EQ(curHero->GetHealth(), curHealth);
+        CHECK_EQ(curHero->GetGameTag(GameTag::IMMUNE), 0);
+    }
+
+    /***** Game 2 Start *****/
+    {
+        GameConfig config;
+        config.player1Class = CardClass::ROGUE;
+        config.player2Class = CardClass::WARRIOR;
+        config.startPlayer = PlayerType::PLAYER1;
+        config.doFillDecks = false;
+        config.autoRun = false;
+
+        Game game(config);
+        game.Start();
+        game.ProcessUntil(Step::MAIN_ACTION);
+
+        Player* curPlayer = game.GetCurrentPlayer();
+        Player* opPlayer = game.GetOpponentPlayer();
+        curPlayer->SetTotalMana(10);
+        curPlayer->SetUsedMana(0);
+        opPlayer->SetTotalMana(10);
+        opPlayer->SetUsedMana(0);
+
+        auto curHero = curPlayer->GetHero();
+        auto curSecret = curPlayer->GetSecretZone();
+
+        const auto curCard1 = Generic::DrawCard(
+            curPlayer, Cards::FindCardByName("Bazaar Burglary"));
+        const auto curCard2 = Generic::DrawCard(
+            curPlayer, Cards::FindCardByID("LOOT_998k"));  // Golden Kobold
+
+        for (int i = 0; i < 8; i++)
+        {
+            Generic::DrawCard(curPlayer, Cards::FindCardByID("LOOT_998k"));
+        }
+
+        auto quest = dynamic_cast<Spell*>(curCard1);
+
+        game.Process(curPlayer, PlayCardTask::Spell(curCard1));
+        CHECK(curSecret->quest != nullptr);
+        CHECK_EQ(quest->GetQuestProgress(), 0);
+        CHECK_EQ(quest->GetQuestProgressTotal(), 4);
+
+        game.Process(curPlayer, PlayCardTask::Minion(curCard2));
+        CHECK_EQ(quest->GetQuestProgress(), 0);
+    }
+}
+
+// ------------------------------------------ SPELL - ROGUE
+// [ULD_715] Plague of Madness - COST:1
+// - Set: Uldum, Rarity: Rare
+// --------------------------------------------------------
+// Text: Each player equips a 2/2 Knife with <b>Poisonous</b>.
+// --------------------------------------------------------
+// GameTag:
+// - 858 = 2451
+// --------------------------------------------------------
+// RefTag:
+// - POISONOUS = 1
+// --------------------------------------------------------
+
+TEST_CASE("[ROGUE : SPELL] - ULD_715 : Plague of Madness")
+{
+    GameConfig config;
+    config.player1Class = CardClass::ROGUE;
+    config.player2Class = CardClass::MAGE;
+    config.startPlayer = PlayerType::PLAYER1;
+    config.doFillDecks = true;
+    config.autoRun = false;
+
+    Game game(config);
+    game.Start();
+    game.ProcessUntil(Step::MAIN_ACTION);
+
+    Player* curPlayer = game.GetCurrentPlayer();
+    Player* opPlayer = game.GetOpponentPlayer();
+    curPlayer->SetTotalMana(10);
+    curPlayer->SetUsedMana(0);
+    opPlayer->SetTotalMana(10);
+    opPlayer->SetUsedMana(0);
+
+    auto& opField = *(opPlayer->GetFieldZone());
+
+    const auto card1 = Generic::DrawCard(
+        curPlayer, Cards::FindCardByName("Plague of Madness"));
+    const auto card2 =
+        Generic::DrawCard(opPlayer, Cards::FindCardByName("Chillwind Yeti"));
+
+    game.Process(curPlayer, PlayCardTask::Spell(card1));
+
+    CHECK_EQ(curPlayer->GetHero()->weapon->GetAttack(), 2);
+    CHECK_EQ(curPlayer->GetHero()->weapon->GetDurability(), 2);
+    CHECK_EQ(opPlayer->GetHero()->weapon->GetAttack(), 2);
+    CHECK_EQ(opPlayer->GetHero()->weapon->GetDurability(), 2);
+
+    game.Process(curPlayer, EndTurnTask());
+    game.ProcessUntil(Step::MAIN_ACTION);
+
+    game.Process(opPlayer, PlayCardTask::Minion(card2));
+    game.Process(opPlayer, AttackTask(opPlayer->GetHero(), curPlayer->GetHero()));
+    CHECK_EQ(curPlayer->GetHero()->isDestroyed, false);
+
+    game.Process(opPlayer, EndTurnTask());
+    game.ProcessUntil(Step::MAIN_ACTION);
+
+    game.Process(curPlayer, AttackTask(curPlayer->GetHero(), card2));
+    CHECK_EQ(curPlayer->GetHero()->GetHealth(), 24);
+    CHECK_EQ(opField.GetCount(), 0);
 }
 
 // --------------------------------------- MINION - WARRIOR
